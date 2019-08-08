@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <vulkan/vulkan.h>
 #include <math.h>
+#include <string.h>
 
 typedef struct {
     VkImage image;
@@ -53,6 +54,24 @@ mat4_t mat4_identity()
     return i;
 }
 
+int memory_type_from_properties(const VkMemoryRequirements* memory_requirements, const VkPhysicalDeviceMemoryProperties* memory_properties, VkMemoryPropertyFlags memory_requirement_mask)
+{
+    uint32_t type_bits = memory_requirements->memoryTypeBits;
+    for (uint32_t i = 0; i < memory_properties->memoryTypeCount; ++i)
+    {
+        if ((type_bits & 1) == 1)
+        {
+            if ((memory_properties->memoryTypes[i].propertyFlags & memory_requirement_mask) == memory_requirement_mask)
+            {
+                return i;
+            }
+        }
+
+        type_bits >>= 1;
+    }
+
+    return -1;
+}
 
 
 mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
@@ -88,6 +107,15 @@ mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
     return product;
 }
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+    VkDebugUtilsMessageTypeFlagsEXT type,
+    const VkDebugUtilsMessengerCallbackDataEXT* data,
+    void* user_data)
+{
+    fprintf(stderr, "validation layer: %s\n", data->pMessage);
+    return VK_FALSE;
+}
 
 int main()
 {
@@ -120,15 +148,31 @@ int main()
     instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_info.pApplicationInfo = &app_info;
 
-    const char* const extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME};
+    const char* const extensions[] = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME};
     instance_info.ppEnabledExtensionNames = extensions;
-    instance_info.enabledExtensionCount = 2;
+    instance_info.enabledExtensionCount = 3;
+
+    VkDebugUtilsMessengerCreateInfoEXT debug_ext_ci = {};
+    debug_ext_ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debug_ext_ci.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debug_ext_ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    debug_ext_ci.pfnUserCallback = vulkan_debug_callback;
+
+    const char* validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
+
+    instance_info.ppEnabledLayerNames = validation_layers;
+    instance_info.enabledLayerCount = 1;
+    instance_info.pNext = &debug_ext_ci;
+
     VkInstance instance;
     VkResult res;
     res = vkCreateInstance(&instance_info, NULL, &instance);
     assert(res == VK_SUCCESS);
 
-
+    VkDebugUtilsMessengerEXT debug_messenger;
+    typedef VkResult (*func_vkCreateDebugUtilsMessengerEXT)(VkInstance, const VkDebugUtilsMessengerCreateInfoEXT*, const VkAllocationCallbacks*, VkDebugUtilsMessengerEXT*);
+    func_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = (func_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    vkCreateDebugUtilsMessengerEXT(instance, &debug_ext_ci, NULL, &debug_messenger);
 
     uint32_t gpus_count = 0;
     res = vkEnumeratePhysicalDevices(instance, &gpus_count, NULL);
@@ -413,22 +457,7 @@ int main()
     vkGetImageMemoryRequirements(device, depth_image, &depth_mem_reqs);
     depth_mem_alloc.allocationSize = depth_mem_reqs.size;
 
-    depth_mem_alloc.memoryTypeIndex = -1;
-    uint32_t mem_type_bits = depth_mem_reqs.memoryTypeBits;
-    VkMemoryPropertyFlags mem_req_mask = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i)
-    {
-        if ((mem_type_bits & 1) == 1)
-        {
-            if ((memory_properties.memoryTypes[i].propertyFlags & mem_req_mask) == mem_req_mask)
-            {
-                depth_mem_alloc.memoryTypeIndex = i;
-                break;
-            }
-        }
-
-        mem_type_bits >>= 1;
-    }
+    depth_mem_alloc.memoryTypeIndex = memory_type_from_properties(&depth_mem_reqs, &memory_properties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     assert(depth_mem_alloc.memoryTypeIndex != -1);
     VkDeviceMemory depth_mem;
@@ -463,6 +492,54 @@ int main()
     res = vkCreateBuffer(device, &uniform_ci, NULL, &uniform_buffer);
     assert(res == VK_SUCCESS);
 
+    VkMemoryRequirements uniform_buffer_mem_reqs;
+    vkGetBufferMemoryRequirements(device, uniform_buffer, &uniform_buffer_mem_reqs);
+
+    VkMemoryAllocateInfo uniform_buffer_mai = {};
+    uniform_buffer_mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    uniform_buffer_mai.allocationSize = uniform_buffer_mem_reqs.size;
+
+    uniform_buffer_mai.memoryTypeIndex = memory_type_from_properties(&uniform_buffer_mem_reqs, &memory_properties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(uniform_buffer_mai.memoryTypeIndex != -1);
+
+    VkDeviceMemory uniform_buffer_mem;
+    res = vkAllocateMemory(device, &uniform_buffer_mai, NULL, &uniform_buffer_mem);
+    assert(res == VK_SUCCESS);
+
+    uint8_t* mapped_uniform_data;
+    res = vkMapMemory(device, uniform_buffer_mem, 0, uniform_buffer_mem_reqs.size, 0, (void**)&mapped_uniform_data);
+    assert(res == VK_SUCCESS);
+
+    memcpy(mapped_uniform_data, &mvp_matrix, sizeof(mvp_matrix));
+
+    vkUnmapMemory(device, uniform_buffer_mem);
+
+    res = vkBindBufferMemory(device, uniform_buffer, uniform_buffer_mem, 0);
+    assert(res == VK_SUCCESS);
+
+    VkDescriptorSetLayoutBinding layout_binding = {};
+    layout_binding.binding = 0;
+    layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layout_binding.descriptorCount = 1;
+    layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutCreateInfo dslci = {};
+    dslci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    dslci.bindingCount = 1;
+    dslci.pBindings = &layout_binding;
+
+    VkDescriptorSetLayout set_layout;
+    res = vkCreateDescriptorSetLayout(device, &dslci, NULL, &set_layout);
+
+    VkPipelineLayoutCreateInfo plci = {};
+    plci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    plci.setLayoutCount = 1;
+    plci.pSetLayouts = &set_layout;
+
+    VkPipelineLayout pipeline_layout;
+    res = vkCreatePipelineLayout(device, &plci, NULL, &pipeline_layout);
+    assert(res == VK_SUCCESS);
+
     xcb_generic_event_t* evt;
     uint32_t run = 1;
     while (run && (evt = xcb_wait_for_event(c)))
@@ -477,6 +554,10 @@ int main()
         free(evt);
     }
 
+    vkDestroyDescriptorSetLayout(device, set_layout, NULL);
+    vkDestroyPipelineLayout(device, pipeline_layout, NULL);
+    vkDestroyBuffer(device, uniform_buffer, NULL);
+    vkFreeMemory(device, uniform_buffer_mem, NULL);
     vkDestroyImageView(device, depth_view, NULL);
     vkDestroyImage(device, depth_image, NULL);
     vkFreeMemory(device, depth_mem, NULL);
