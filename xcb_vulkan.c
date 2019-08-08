@@ -4,11 +4,90 @@
 #include <stdio.h>
 #include <assert.h>
 #include <vulkan/vulkan.h>
+#include <math.h>
 
 typedef struct {
     VkImage image;
     VkImageView view;
 } swapchain_buffer_t;
+
+typedef struct
+{
+    float x, y, z, w;
+} vec4_t;
+
+typedef struct
+{
+    vec4_t x, y, z, w;
+} mat4_t;
+
+const float pi = 3.1415926535897932;
+
+static mat4_t create_projection_matrix(float bb_width, float bb_height)
+{
+    float near_plane = 0.01f;
+    float far_plane = 1000.0f;
+    float fov = 75.0f;
+    float aspect = bb_width / bb_height;
+    float y_scale = 1.0f / tanf((pi / 180.0f) * fov / 2);
+    float x_scale = y_scale / aspect;
+    mat4_t proj = {
+        {x_scale, 0, 0, 0},
+        {0, 0, far_plane/(far_plane-near_plane), 1},
+        {0, y_scale, 0, 0},
+        {0, 0, (-far_plane * near_plane) / (far_plane - near_plane), 0}
+    };
+    return proj;
+}
+
+
+mat4_t mat4_identity()
+{
+    const mat4_t i = {
+        {1, 0, 0, 0},
+        {0, 1, 0, 0},
+        {0, 0, 1, 0},
+        {0, 0, 0, 1}
+    };
+
+    return i;
+}
+
+
+
+mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
+{
+    mat4_t product =
+    {
+        {
+            m1->x.x * m2->x.x + m1->x.y * m2->y.x + m1->x.z * m2->z.x + m1->x.w * m2->w.x,
+            m1->x.x * m2->x.y + m1->x.y * m2->y.y + m1->x.z * m2->z.y + m1->x.w * m2->w.y,
+            m1->x.x * m2->x.z + m1->x.y * m2->y.z + m1->x.z * m2->z.z + m1->x.w * m2->w.z,
+            m1->x.x * m2->x.w + m1->x.y * m2->y.w + m1->x.z * m2->z.w + m1->x.w * m2->w.w
+        },
+        {
+            m1->y.x * m2->x.x + m1->y.y * m2->y.x + m1->y.z * m2->z.x + m1->y.w * m2->w.x,
+            m1->y.x * m2->x.y + m1->y.y * m2->y.y + m1->y.z * m2->z.y + m1->y.w * m2->w.y,
+            m1->y.x * m2->x.z + m1->y.y * m2->y.z + m1->y.z * m2->z.z + m1->y.w * m2->w.z,
+            m1->y.x * m2->x.w + m1->y.y * m2->y.w + m1->y.z * m2->z.w + m1->y.w * m2->w.w
+        },
+        {
+            m1->z.x * m2->x.x + m1->z.y * m2->y.x + m1->z.z * m2->z.x + m1->z.w * m2->w.x,
+            m1->z.x * m2->x.y + m1->z.y * m2->y.y + m1->z.z * m2->z.y + m1->z.w * m2->w.y,
+            m1->z.x * m2->x.z + m1->z.y * m2->y.z + m1->z.z * m2->z.z + m1->z.w * m2->w.z,
+            m1->z.x * m2->x.w + m1->z.y * m2->y.w + m1->z.z * m2->z.w + m1->z.w * m2->w.w
+        },
+        {
+            m1->w.x * m2->x.x + m1->w.y * m2->y.x + m1->w.z * m2->z.x + m1->w.w * m2->w.x,
+            m1->w.x * m2->x.y + m1->w.y * m2->y.y + m1->w.z * m2->z.y + m1->w.w * m2->w.y,
+            m1->w.x * m2->x.z + m1->w.y * m2->y.z + m1->w.z * m2->z.z + m1->w.w * m2->w.z,
+            m1->w.x * m2->x.w + m1->w.y * m2->y.w + m1->w.z * m2->z.w + m1->w.w * m2->w.w
+        }
+    };
+
+    return product;
+}
+
 
 int main()
 {
@@ -360,6 +439,28 @@ int main()
     depth_ivci.image = depth_image;
     VkImageView depth_view;
     res = vkCreateImageView(device, &depth_ivci, NULL, &depth_view);
+    assert(res == VK_SUCCESS);
+
+    mat4_t proj_matrix = create_projection_matrix((float)swapchain_extent.width, (float)swapchain_extent.height);
+    mat4_t view_matrix = {
+        {1, 0, 0, 0},
+        {0, 1, 0, -2},
+        {0, 0, 1, 0},
+        {0, 0, 0, 1}
+    };
+
+    mat4_t model_matrix = mat4_identity();
+    mat4_t proj_view_matrix = mat4_mul(&proj_matrix, &view_matrix);
+    mat4_t mvp_matrix = mat4_mul(&proj_view_matrix, &model_matrix);
+
+    VkBufferCreateInfo uniform_ci = {};
+    uniform_ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    uniform_ci.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    uniform_ci.size = sizeof(mvp_matrix);
+    uniform_ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer uniform_buffer;
+    res = vkCreateBuffer(device, &uniform_ci, NULL, &uniform_buffer);
     assert(res == VK_SUCCESS);
 
     xcb_generic_event_t* evt;
