@@ -540,6 +540,47 @@ int main()
     res = vkCreatePipelineLayout(device, &plci, NULL, &pipeline_layout);
     assert(res == VK_SUCCESS);
 
+    VkDescriptorPoolSize dps[1];
+    dps[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    dps[0].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo dpci = {};
+    dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    dpci.maxSets = 1;
+    dpci.poolSizeCount = 1;
+    dpci.pPoolSizes = dps;
+
+    VkDescriptorPool descriptor_pool;
+    res = vkCreateDescriptorPool(device, &dpci, NULL, &descriptor_pool);
+    assert(res == VK_SUCCESS);
+
+    VkDescriptorSetAllocateInfo dai[1];
+    dai[0].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    dai[0].pNext = NULL;
+    dai[0].descriptorPool = descriptor_pool;
+    #define NUM_DESCRIPTOR_SETS 1
+    dai[0].descriptorSetCount = NUM_DESCRIPTOR_SETS;
+    dai[0].pSetLayouts = &set_layout;
+
+    VkDescriptorSet descriptor_sets[1];
+    res = vkAllocateDescriptorSets(device, dai, descriptor_sets);
+    assert(res == VK_SUCCESS);
+
+    VkWriteDescriptorSet writes[1];
+
+    VkDescriptorBufferInfo uniform_buffer_info = {};
+    uniform_buffer_info.buffer = uniform_buffer;
+    uniform_buffer_info.range = sizeof(mvp_matrix);
+
+    memset(writes, 0, sizeof(VkWriteDescriptorSet) * 1);
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = descriptor_sets[0];
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes[0].pBufferInfo = &uniform_buffer_info;
+
+    vkUpdateDescriptorSets(device, 1, writes, 0, NULL);
+
     xcb_generic_event_t* evt;
     uint32_t run = 1;
     while (run && (evt = xcb_wait_for_event(c)))
@@ -554,6 +595,7 @@ int main()
         free(evt);
     }
 
+    vkDestroyDescriptorPool(device, descriptor_pool, NULL);
     vkDestroyDescriptorSetLayout(device, set_layout, NULL);
     vkDestroyPipelineLayout(device, pipeline_layout, NULL);
     vkDestroyBuffer(device, uniform_buffer, NULL);
