@@ -73,6 +73,128 @@ int memory_type_from_properties(const VkMemoryRequirements* memory_requirements,
     return -1;
 }
 
+typedef struct{
+    float posX, posY, posZ, posW;  // Position data
+    float r, g, b, a;              // Color
+}  Vertex ;
+
+typedef struct {
+    float posX, posY, posZ, posW;  // Position data
+    float u, v;                    // texture u,v
+} VertexUV;
+
+#define XYZ1(_x_, _y_, _z_) (_x_), (_y_), (_z_), 1.f
+#define UV(_u_, _v_) (_u_), (_v_)
+
+static const Vertex g_vbData[] = {
+    {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 0.f)}, {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},  {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},
+
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},  {XYZ1(-1, 1, 1), XYZ1(0.f, 1.f, 1.f)},  {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 1.f)},   {XYZ1(-1, 1, 1), XYZ1(0.f, 1.f, 1.f)},  {XYZ1(1, 1, 1), XYZ1(1.f, 1.f, 1.f)},
+
+    {XYZ1(1, 1, 1), XYZ1(1.f, 1.f, 1.f)},    {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},  {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 1.f)},   {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},  {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)},
+
+    {XYZ1(-1, 1, 1), XYZ1(0.f, 1.f, 1.f)},   {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)}, {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},  {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)}, {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 0.f)},
+
+    {XYZ1(1, 1, 1), XYZ1(1.f, 1.f, 1.f)},    {XYZ1(-1, 1, 1), XYZ1(0.f, 1.f, 1.f)},  {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},   {XYZ1(-1, 1, 1), XYZ1(0.f, 1.f, 1.f)},  {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+
+    {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 1.f)},   {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},  {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 0.f)},
+};
+
+static const Vertex g_vb_solid_face_colors_Data[] = {
+    // red face
+    {XYZ1(-1, -1, 1), XYZ1(1.f, 0.f, 0.f)},
+    {XYZ1(-1, 1, 1), XYZ1(1.f, 0.f, 0.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 0.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 0.f, 0.f)},
+    {XYZ1(-1, 1, 1), XYZ1(1.f, 0.f, 0.f)},
+    {XYZ1(1, 1, 1), XYZ1(1.f, 0.f, 0.f)},
+    // green face
+    {XYZ1(-1, -1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(1, -1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(1, -1, -1), XYZ1(0.f, 1.f, 0.f)},
+    {XYZ1(1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
+    // blue face
+    {XYZ1(-1, 1, 1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, 1, -1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},
+    {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 1.f)},
+    // yellow face
+    {XYZ1(1, 1, 1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, -1, 1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},
+    {XYZ1(1, -1, -1), XYZ1(1.f, 1.f, 0.f)},
+    // magenta face
+    {XYZ1(1, 1, 1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(-1, 1, 1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(1, 1, -1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(1, 1, -1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(-1, 1, 1), XYZ1(1.f, 0.f, 1.f)},
+    {XYZ1(-1, 1, -1), XYZ1(1.f, 0.f, 1.f)},
+    // cyan face
+    {XYZ1(1, -1, 1), XYZ1(0.f, 1.f, 1.f)},
+    {XYZ1(1, -1, -1), XYZ1(0.f, 1.f, 1.f)},
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 1.f, 1.f)},
+    {XYZ1(-1, -1, 1), XYZ1(0.f, 1.f, 1.f)},
+    {XYZ1(1, -1, -1), XYZ1(0.f, 1.f, 1.f)},
+    {XYZ1(-1, -1, -1), XYZ1(0.f, 1.f, 1.f)},
+};
+
+static const VertexUV g_vb_texture_Data[] = {
+    // left face
+    {XYZ1(-1, -1, -1), UV(1.f, 0.f)},  // lft-top-front
+    {XYZ1(-1, 1, 1), UV(0.f, 1.f)},    // lft-btm-back
+    {XYZ1(-1, -1, 1), UV(0.f, 0.f)},   // lft-top-back
+    {XYZ1(-1, 1, 1), UV(0.f, 1.f)},    // lft-btm-back
+    {XYZ1(-1, -1, -1), UV(1.f, 0.f)},  // lft-top-front
+    {XYZ1(-1, 1, -1), UV(1.f, 1.f)},   // lft-btm-front
+    // front face
+    {XYZ1(-1, -1, -1), UV(0.f, 0.f)},  // lft-top-front
+    {XYZ1(1, -1, -1), UV(1.f, 0.f)},   // rgt-top-front
+    {XYZ1(1, 1, -1), UV(1.f, 1.f)},    // rgt-btm-front
+    {XYZ1(-1, -1, -1), UV(0.f, 0.f)},  // lft-top-front
+    {XYZ1(1, 1, -1), UV(1.f, 1.f)},    // rgt-btm-front
+    {XYZ1(-1, 1, -1), UV(0.f, 1.f)},   // lft-btm-front
+    // top face
+    {XYZ1(-1, -1, -1), UV(0.f, 1.f)},  // lft-top-front
+    {XYZ1(1, -1, 1), UV(1.f, 0.f)},    // rgt-top-back
+    {XYZ1(1, -1, -1), UV(1.f, 1.f)},   // rgt-top-front
+    {XYZ1(-1, -1, -1), UV(0.f, 1.f)},  // lft-top-front
+    {XYZ1(-1, -1, 1), UV(0.f, 0.f)},   // lft-top-back
+    {XYZ1(1, -1, 1), UV(1.f, 0.f)},    // rgt-top-back
+    // bottom face
+    {XYZ1(-1, 1, -1), UV(0.f, 0.f)},  // lft-btm-front
+    {XYZ1(1, 1, 1), UV(1.f, 1.f)},    // rgt-btm-back
+    {XYZ1(-1, 1, 1), UV(0.f, 1.f)},   // lft-btm-back
+    {XYZ1(-1, 1, -1), UV(0.f, 0.f)},  // lft-btm-front
+    {XYZ1(1, 1, -1), UV(1.f, 0.f)},   // rgt-btm-front
+    {XYZ1(1, 1, 1), UV(1.f, 1.f)},    // rgt-btm-back
+    // right face
+    {XYZ1(1, 1, -1), UV(0.f, 1.f)},   // rgt-btm-front
+    {XYZ1(1, -1, 1), UV(1.f, 0.f)},   // rgt-top-back
+    {XYZ1(1, 1, 1), UV(1.f, 1.f)},    // rgt-btm-back
+    {XYZ1(1, -1, 1), UV(1.f, 0.f)},   // rgt-top-back
+    {XYZ1(1, 1, -1), UV(0.f, 1.f)},   // rgt-btm-front
+    {XYZ1(1, -1, -1), UV(0.f, 0.f)},  // rgt-top-front
+    // back face
+    {XYZ1(-1, 1, 1), UV(1.f, 1.f)},   // lft-btm-back
+    {XYZ1(1, 1, 1), UV(0.f, 1.f)},    // rgt-btm-back
+    {XYZ1(-1, -1, 1), UV(1.f, 0.f)},  // lft-top-back
+    {XYZ1(-1, -1, 1), UV(1.f, 0.f)},  // lft-top-back
+    {XYZ1(1, 1, 1), UV(0.f, 1.f)},    // rgt-btm-back
+    {XYZ1(1, -1, 1), UV(0.f, 0.f)},   // rgt-top-back
+};
 
 mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
 {
@@ -115,6 +237,35 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
 {
     fprintf(stderr, "validation layer: %s\n", data->pMessage);
     return VK_FALSE;
+}
+
+typedef struct
+{
+    char* data;
+    size_t size;
+} file_data_t;
+
+typedef enum { 
+    FILE_LOAD_SUCCESS,
+    FILE_LOAD_DOES_NOT_EXIST
+} file_load_success_e;
+
+file_load_success_e file_load(const char* filename, file_data_t* file_data)
+{
+    FILE* file_handle = fopen(filename, "rb");
+
+    if (file_handle == NULL)
+        return FILE_LOAD_DOES_NOT_EXIST;
+
+    fseek(file_handle, 0, SEEK_END);
+    unsigned filesize = ftell(file_handle);
+    fseek(file_handle, 0, SEEK_SET);
+    char* data = malloc(filesize);
+    fread(data, 1, filesize, file_handle);
+    fclose(file_handle);
+    file_data->data = data;
+    file_data->size = filesize;
+    return FILE_LOAD_SUCCESS;
 }
 
 int main()
@@ -321,33 +472,42 @@ int main()
     res = vkGetPhysicalDeviceSurfacePresentModesKHR(gpus[0], surface, &present_mode_count, present_modes);
     assert(res == VK_SUCCESS);*/
 
-    VkSwapchainCreateInfoKHR si = {};
-    si.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    si.surface = surface;
-    si.minImageCount = desired_num_swapchain_images;
-    si.imageFormat = format;
-    si.imageExtent = swapchain_extent;
-    si.preTransform = pre_transform;
-    si.compositeAlpha = composite_alpha;
-    si.imageArrayLayers = 1;
-    si.presentMode = swapchain_present_mode;
-    si.oldSwapchain = VK_NULL_HANDLE;
-    si.clipped = 1;
-    si.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-    si.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    si.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkSwapchainCreateInfoKHR scci = {};
+    scci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    scci.surface = surface;
+    scci.minImageCount = desired_num_swapchain_images;
+    scci.imageFormat = format;
+    scci.imageExtent = swapchain_extent;
+    scci.preTransform = pre_transform;
+    scci.compositeAlpha = composite_alpha;
+    scci.imageArrayLayers = 1;
+    scci.presentMode = swapchain_present_mode;
+    scci.oldSwapchain = VK_NULL_HANDLE;
+    scci.clipped = 1;
+    scci.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+    scci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    scci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     uint32_t queue_family_indicies[] = {graphics_queue_idx, present_queue_idx};
 
     if (queue_family_indicies[0] != queue_family_indicies[1])
     {
-        si.pQueueFamilyIndices = queue_family_indicies;
-        si.queueFamilyIndexCount = 2;
-        si.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        scci.pQueueFamilyIndices = queue_family_indicies;
+        scci.queueFamilyIndexCount = 2;
+        scci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+    }
+
+    VkQueue graphics_queue;
+    VkQueue present_queue;
+    vkGetDeviceQueue(device, graphics_queue_idx, 0, &graphics_queue);
+    if (graphics_queue_idx == present_queue_idx) {
+        present_queue = graphics_queue;
+    } else {
+        vkGetDeviceQueue(device, present_queue_idx, 0, &present_queue);
     }
 
     VkSwapchainKHR swapchain;
-    res = vkCreateSwapchainKHR(device, &si, NULL, &swapchain);
+    res = vkCreateSwapchainKHR(device, &scci, NULL, &swapchain);
     assert(res == VK_SUCCESS);
 
     uint32_t swapchain_image_count;
@@ -370,10 +530,10 @@ int main()
         vci.image = swapchain_buffers[i].image;
         vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
         vci.format = format;
-        vci.components.r = VK_COMPONENT_SWIZZLE_R;
-        vci.components.g = VK_COMPONENT_SWIZZLE_G;
-        vci.components.b = VK_COMPONENT_SWIZZLE_B;
-        vci.components.a = VK_COMPONENT_SWIZZLE_A;
+        vci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
         vci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         vci.subresourceRange.baseMipLevel = 0;
         vci.subresourceRange.levelCount = 1;
@@ -438,10 +598,10 @@ int main()
     depth_ivci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     depth_ivci.image = VK_NULL_HANDLE;
     depth_ivci.format = depth_format;
-    depth_ivci.components.r = VK_COMPONENT_SWIZZLE_R;
-    depth_ivci.components.g = VK_COMPONENT_SWIZZLE_G;
-    depth_ivci.components.b = VK_COMPONENT_SWIZZLE_B;
-    depth_ivci.components.a = VK_COMPONENT_SWIZZLE_A;
+    depth_ivci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    depth_ivci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    depth_ivci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    depth_ivci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
     depth_ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     depth_ivci.subresourceRange.levelCount = 1;
     depth_ivci.subresourceRange.layerCount = 1;
@@ -581,6 +741,238 @@ int main()
 
     vkUpdateDescriptorSets(device, 1, writes, 0, NULL);
 
+    VkAttachmentDescription attachments[2];
+    memset(attachments, 0, sizeof(VkAttachmentDescription) * 2);
+    attachments[0].format = format;
+    attachments[0].samples = NUM_SAMPLES;
+    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    attachments[1].format = depth_format;
+    attachments[1].samples = NUM_SAMPLES;
+    attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference color_reference = {};
+    color_reference.attachment = 0;
+    color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depth_reference = {};
+    depth_reference.attachment = 1;
+    depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_reference;
+    subpass.pDepthStencilAttachment = &depth_reference;
+
+    VkRenderPassCreateInfo rpci = {};
+    rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rpci.attachmentCount = 2;
+    rpci.pAttachments = attachments;
+    rpci.subpassCount = 1;
+    rpci.pSubpasses = &subpass;
+
+    VkRenderPass render_pass;
+    res = vkCreateRenderPass(device, &rpci, NULL, &render_pass);
+    assert(res == VK_SUCCESS);
+
+    file_data_t vertex_shader_data;
+    file_load_success_e vs_data_res = file_load("vertex_shader.spv", &vertex_shader_data);
+    assert(vs_data_res == FILE_LOAD_SUCCESS);
+
+    VkShaderModuleCreateInfo vertex_mdci = {};
+    vertex_mdci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertex_mdci.pCode = (uint32_t*)vertex_shader_data.data;
+    vertex_mdci.codeSize = vertex_shader_data.size;
+
+    VkShaderModule vertex_sm;
+    res = vkCreateShaderModule(device, &vertex_mdci, NULL, &vertex_sm);
+    assert(res == VK_SUCCESS);
+
+    file_data_t fragment_shader_data;
+    file_load_success_e fs_data_res = file_load("fragment_shader.spv", &fragment_shader_data);
+    assert(fs_data_res == FILE_LOAD_SUCCESS);
+
+    VkShaderModuleCreateInfo fragment_mdci = {};
+    fragment_mdci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragment_mdci.pCode = (uint32_t*)fragment_shader_data.data;
+    fragment_mdci.codeSize = fragment_shader_data.size;
+
+    VkShaderModule fragment_sm;
+    res = vkCreateShaderModule(device, &fragment_mdci, NULL, &fragment_sm);
+    assert(res == VK_SUCCESS);
+
+    VkPipelineShaderStageCreateInfo shader_stages[2];
+    memset(shader_stages, 0, sizeof(VkPipelineShaderStageCreateInfo) * 2);
+
+    shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shader_stages[0].pName = "main";
+
+    shader_stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shader_stages[1].pName = "main";
+
+    VkImageView framebuffer_attachments[2];
+    framebuffer_attachments[1] = depth_view;
+
+    VkFramebufferCreateInfo fbci = {};
+    fbci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fbci.renderPass = render_pass;
+    fbci.attachmentCount = 2;
+    fbci.pAttachments = framebuffer_attachments;
+    fbci.width = swapchain_extent.width;
+    fbci.height = swapchain_extent.height;
+    fbci.layers = 1;
+
+    VkFramebuffer* framebuffers = malloc(sizeof(VkFramebuffer) * swapchain_image_count);
+    assert(framebuffers);
+
+    for (uint32_t i = 0; i < swapchain_image_count; ++i)
+    {
+        framebuffer_attachments[0] = swapchain_buffers[i].view;
+        res = vkCreateFramebuffer(device, &fbci, NULL, &framebuffers[i]);
+        assert(res == VK_SUCCESS);
+    }
+
+    (void)g_vbData;
+    (void)g_vb_solid_face_colors_Data;
+    (void)g_vb_texture_Data;
+
+    VkBufferCreateInfo vertex_bci = {};
+    vertex_bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vertex_bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertex_bci.size = sizeof(g_vb_solid_face_colors_Data);
+    vertex_bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer vertex_buffer;
+    res = vkCreateBuffer(device, &vertex_bci, NULL, &vertex_buffer);
+
+    VkMemoryRequirements vertex_buffer_mr;
+    vkGetBufferMemoryRequirements(device, vertex_buffer, &vertex_buffer_mr);
+
+    VkMemoryAllocateInfo vertex_buffer_mai = {};
+    vertex_buffer_mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    vertex_buffer_mai.allocationSize = vertex_buffer_mr.size;
+    vertex_buffer_mai.memoryTypeIndex = memory_type_from_properties(&vertex_buffer_mr, &memory_properties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    assert(vertex_buffer_mai.memoryTypeIndex != -1);
+
+    VkDeviceMemory vertex_buffer_memory;
+    res = vkAllocateMemory(device, &vertex_buffer_mai, NULL, &vertex_buffer_memory);
+    assert(res == VK_SUCCESS);
+
+    uint8_t* vertex_buffer_memory_data;
+    res = vkMapMemory(device, vertex_buffer_memory, 0, vertex_buffer_mr.size, 0, (void**)&vertex_buffer_memory_data);
+    assert(res == VK_SUCCESS);
+
+    memcpy(vertex_buffer_memory_data, g_vb_solid_face_colors_Data, sizeof(g_vb_solid_face_colors_Data));
+
+    vkUnmapMemory(device, vertex_buffer_memory);
+
+    res = vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0);
+    assert(res == VK_SUCCESS);
+
+    /*info.vi_binding.binding = 0;
+    info.vi_binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    info.vi_binding.stride = sizeof(g_vb_solid_face_colors_Data[0]);
+
+    info.vi_attribs[0].binding = 0;
+    info.vi_attribs[0].location = 0;
+    info.vi_attribs[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    info.vi_attribs[0].offset = 0;
+    info.vi_attribs[1].binding = 0;
+    info.vi_attribs[1].location = 1;
+    info.vi_attribs[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    info.vi_attribs[1].offset = 16;
+    */
+
+
+    VkClearValue clear_values[2];
+    clear_values[0].color.float32[0] = 1.0f;
+    clear_values[0].color.float32[1] = 0.0f;
+    clear_values[0].color.float32[2] = 0.0f;
+    clear_values[0].color.float32[3] = 1.0f;
+    clear_values[1].depthStencil.depth = 1.0f;
+    clear_values[1].depthStencil.stencil = 0;
+
+    
+    VkSemaphore image_acquired_semaphore;
+    VkSemaphoreCreateInfo iasci = {};
+    iasci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    res = vkCreateSemaphore(device, &iasci, NULL, &image_acquired_semaphore);
+    assert(res == VK_SUCCESS);
+
+    uint32_t current_buffer;
+    res = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &current_buffer);
+    assert(res >= 0);
+
+    VkCommandBufferBeginInfo cbbi = {};
+    cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    res = vkBeginCommandBuffer(cmd, &cbbi);
+    assert(res == VK_SUCCESS);
+
+    VkRenderPassBeginInfo rpbi = {};
+    rpbi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rpbi.renderPass = render_pass;
+    rpbi.framebuffer = framebuffers[current_buffer];
+    rpbi.renderArea.extent.width = swapchain_extent.width;
+    rpbi.renderArea.extent.height = swapchain_extent.height;
+    rpbi.clearValueCount = 2;
+    rpbi.pClearValues = clear_values;
+
+    vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+
+    const VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(cmd, 0, 1, &vertex_buffer, offsets);
+
+    vkCmdEndRenderPass(cmd);
+
+    res = vkEndCommandBuffer(cmd);
+    assert(res == VK_SUCCESS);
+
+    VkFenceCreateInfo fci = {};
+    VkFence fence;
+    fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    vkCreateFence(device, &fci, NULL, &fence);
+
+    VkPipelineStageFlags psf = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo si = {}; // can be mupltiple!!
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.pWaitDstStageMask = &psf;
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &cmd;
+
+    #define FENCE_TIMEOUT 100000000
+
+    res = vkQueueSubmit(graphics_queue, 1, &si, fence);
+    assert(res == VK_SUCCESS);
+
+    do {
+        res = vkWaitForFences(device, 1, &fence, VK_TRUE, FENCE_TIMEOUT);
+    } while (res == VK_TIMEOUT);
+    assert(res == VK_SUCCESS);
+
+    vkDestroyFence(device, fence, NULL);
+
+    VkPresentInfoKHR pi = {};
+    pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    pi.swapchainCount = 1;
+    pi.pSwapchains = &swapchain;
+    pi.pImageIndices = &current_buffer;
+
+    res = vkQueuePresentKHR(present_queue, &pi);
+
     xcb_generic_event_t* evt;
     uint32_t run = 1;
     while (run && (evt = xcb_wait_for_event(c)))
@@ -594,7 +986,15 @@ int main()
         }
         free(evt);
     }
-
+    
+    for (uint32_t i = 0; i < swapchain_image_count; i++) {
+        vkDestroyFramebuffer(device, framebuffers[i], NULL);
+    }
+    free(framebuffers);
+    vkDestroyShaderModule(device, fragment_sm, NULL);
+    vkDestroyShaderModule(device, vertex_sm, NULL);
+    vkDestroyRenderPass(device, render_pass, NULL);
+    vkDestroySemaphore(device, image_acquired_semaphore, NULL);
     vkDestroyDescriptorPool(device, descriptor_pool, NULL);
     vkDestroyDescriptorSetLayout(device, set_layout, NULL);
     vkDestroyPipelineLayout(device, pipeline_layout, NULL);
