@@ -35,7 +35,7 @@ static mat4_t create_projection_matrix(float bb_width, float bb_height)
     mat4_t proj = {
         {x_scale, 0, 0, 0},
         {0, 0, far_plane/(far_plane-near_plane), 1},
-        {0, y_scale, 0, 0},
+        {0, -y_scale, 0, 0},
         {0, 0, (-far_plane * near_plane) / (far_plane - near_plane), 0}
     };
     return proj;
@@ -72,6 +72,19 @@ int memory_type_from_properties(const VkMemoryRequirements* memory_requirements,
 
     return -1;
 }
+
+
+typedef struct
+{
+    float x, y, z, w;
+} quat_t;
+
+
+
+typedef struct 
+{
+    float x, y, z;
+} vec3_t;
 
 typedef struct{
     float posX, posY, posZ, posW;  // Position data
@@ -196,6 +209,43 @@ static const VertexUV g_vb_texture_Data[] = {
     {XYZ1(1, -1, 1), UV(0.f, 0.f)},   // rgt-top-back
 };
 
+mat4_t mat4_from_rotation_and_translation(const quat_t* q, const vec3_t* t)
+{
+    const float x = q->x, y = q->y, z = q->z, w = q->w,
+        x2 = x + x,
+        y2 = y + y,
+        z2 = z + z,
+
+        xx = x * x2,
+        xy = x * y2,
+        xz = x * z2,
+        yy = y * y2,
+        yz = y * z2,
+        zz = z * z2,
+        wx = w * x2,
+        wy = w * y2,
+        wz = w * z2;
+
+    mat4_t out = {};
+    out.x.x = 1 - (yy + zz);
+    out.x.y = xy + wz;
+    out.x.z = xz - wy;
+    out.x.w = 0;
+    out.y.x = xy - wz;
+    out.y.y = 1 - (xx + zz);
+    out.y.z = yz + wx;
+    out.y.w = 0;
+    out.z.x = xz + wy;
+    out.z.y = yz - wx;
+    out.z.z = 1 - (xx + yy);
+    out.z.w = 0;
+    out.w.x = t->x;
+    out.w.y = t->y;
+    out.w.z = t->z;
+    out.w.w = 1;
+    return out;
+}
+
 mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
 {
     mat4_t product =
@@ -227,6 +277,51 @@ mat4_t mat4_mul(const mat4_t* m1, const mat4_t* m2)
     };
 
     return product;
+}
+
+
+mat4_t mat4_inverse(const mat4_t* m)
+{
+    const float* a = &m->x.x;
+    float a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
+        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
+        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15],
+
+        b00 = a00 * a11 - a01 * a10,
+        b01 = a00 * a12 - a02 * a10,
+        b02 = a00 * a13 - a03 * a10,
+        b03 = a01 * a12 - a02 * a11,
+        b04 = a01 * a13 - a03 * a11,
+        b05 = a02 * a13 - a03 * a12,
+        b06 = a20 * a31 - a21 * a30,
+        b07 = a20 * a32 - a22 * a30,
+        b08 = a20 * a33 - a23 * a30,
+        b09 = a21 * a32 - a22 * a31,
+        b10 = a21 * a33 - a23 * a31,
+        b11 = a22 * a33 - a23 * a32;
+
+    // Calculate the determinant
+    float det = 1.0f / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
+
+    mat4_t result;
+    result.x.x = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    result.x.y = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    result.x.z = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    result.x.w = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    result.y.x = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    result.y.y = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    result.y.z = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    result.y.w = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    result.z.x = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    result.z.y = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    result.z.z = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    result.z.w = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    result.w.x = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    result.w.y = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    result.w.z = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    result.w.w = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+    return result;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
@@ -322,7 +417,9 @@ int main()
 
     VkDebugUtilsMessengerEXT debug_messenger;
     typedef VkResult (*func_vkCreateDebugUtilsMessengerEXT)(VkInstance, const VkDebugUtilsMessengerCreateInfoEXT*, const VkAllocationCallbacks*, VkDebugUtilsMessengerEXT*);
+    typedef void (*func_vkDestroyDebugUtilsMessengerEXT)(VkInstance, VkDebugUtilsMessengerEXT, const VkAllocationCallbacks*);
     func_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = (func_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    func_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = (func_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
     vkCreateDebugUtilsMessengerEXT(instance, &debug_ext_ci, NULL, &debug_messenger);
 
     uint32_t gpus_count = 0;
@@ -631,15 +728,15 @@ int main()
     assert(res == VK_SUCCESS);
 
     mat4_t proj_matrix = create_projection_matrix((float)swapchain_extent.width, (float)swapchain_extent.height);
-    mat4_t view_matrix = {
-        {1, 0, 0, 0},
-        {0, 1, 0, -2},
-        {0, 0, 1, 0},
-        {0, 0, 0, 1}
-    };
+
+    vec3_t camera_pos = {2.5, -4, 1.5};
+    quat_t camera_rot = {-0.3333, 0, 0.3333, 0.6667};
+    mat4_t camera_matrix = mat4_from_rotation_and_translation(&camera_rot, &camera_pos);
+
+    mat4_t view_matrix = mat4_inverse(&camera_matrix);
 
     mat4_t model_matrix = mat4_identity();
-    mat4_t proj_view_matrix = mat4_mul(&proj_matrix, &view_matrix);
+    mat4_t proj_view_matrix = mat4_mul(&view_matrix, &proj_matrix);
     mat4_t mvp_matrix = mat4_mul(&proj_view_matrix, &model_matrix);
 
     VkBufferCreateInfo uniform_ci = {};
@@ -786,6 +883,14 @@ int main()
     res = vkCreateRenderPass(device, &rpci, NULL, &render_pass);
     assert(res == VK_SUCCESS);
 
+
+    VkPipelineShaderStageCreateInfo shader_stages[2];
+    memset(shader_stages, 0, sizeof(VkPipelineShaderStageCreateInfo) * 2);
+
+    shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shader_stages[0].pName = "main";
+
     file_data_t vertex_shader_data;
     file_load_success_e vs_data_res = file_load("vertex_shader.spv", &vertex_shader_data);
     assert(vs_data_res == FILE_LOAD_SUCCESS);
@@ -795,33 +900,24 @@ int main()
     vertex_mdci.pCode = (uint32_t*)vertex_shader_data.data;
     vertex_mdci.codeSize = vertex_shader_data.size;
 
-    VkShaderModule vertex_sm;
-    res = vkCreateShaderModule(device, &vertex_mdci, NULL, &vertex_sm);
+    res = vkCreateShaderModule(device, &vertex_mdci, NULL, &shader_stages[0].module);
     assert(res == VK_SUCCESS);
 
     file_data_t fragment_shader_data;
     file_load_success_e fs_data_res = file_load("fragment_shader.spv", &fragment_shader_data);
     assert(fs_data_res == FILE_LOAD_SUCCESS);
 
+    shader_stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shader_stages[1].pName = "main";
+
     VkShaderModuleCreateInfo fragment_mdci = {};
     fragment_mdci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     fragment_mdci.pCode = (uint32_t*)fragment_shader_data.data;
     fragment_mdci.codeSize = fragment_shader_data.size;
 
-    VkShaderModule fragment_sm;
-    res = vkCreateShaderModule(device, &fragment_mdci, NULL, &fragment_sm);
+    res = vkCreateShaderModule(device, &fragment_mdci, NULL, &shader_stages[1].module);
     assert(res == VK_SUCCESS);
-
-    VkPipelineShaderStageCreateInfo shader_stages[2];
-    memset(shader_stages, 0, sizeof(VkPipelineShaderStageCreateInfo) * 2);
-
-    shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_stages[0].pName = "main";
-
-    shader_stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_stages[1].pName = "main";
 
     VkImageView framebuffer_attachments[2];
     framebuffer_attachments[1] = depth_view;
@@ -882,30 +978,142 @@ int main()
     res = vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0);
     assert(res == VK_SUCCESS);
 
-    /*info.vi_binding.binding = 0;
-    info.vi_binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    info.vi_binding.stride = sizeof(g_vb_solid_face_colors_Data[0]);
+    VkVertexInputBindingDescription vi_binding = {};
+    VkVertexInputAttributeDescription vi_attribs[2];
+    memset(vi_attribs, 0, sizeof(vi_attribs));
+    vi_binding.binding = 0;
+    vi_binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    vi_binding.stride = sizeof(g_vb_solid_face_colors_Data[0]);
 
-    info.vi_attribs[0].binding = 0;
-    info.vi_attribs[0].location = 0;
-    info.vi_attribs[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    info.vi_attribs[0].offset = 0;
-    info.vi_attribs[1].binding = 0;
-    info.vi_attribs[1].location = 1;
-    info.vi_attribs[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    info.vi_attribs[1].offset = 16;
-    */
-
+    vi_attribs[0].binding = 0;
+    vi_attribs[0].location = 0;
+    vi_attribs[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    vi_attribs[0].offset = 0;
+    vi_attribs[1].binding = 0;
+    vi_attribs[1].location = 1;
+    vi_attribs[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    vi_attribs[1].offset = 16;
 
     VkClearValue clear_values[2];
-    clear_values[0].color.float32[0] = 1.0f;
+    clear_values[0].color.float32[0] = 0.0f;
     clear_values[0].color.float32[1] = 0.0f;
     clear_values[0].color.float32[2] = 0.0f;
     clear_values[0].color.float32[3] = 1.0f;
     clear_values[1].depthStencil.depth = 1.0f;
     clear_values[1].depthStencil.stencil = 0;
 
+    VkDynamicState dynamic_state_enables[VK_DYNAMIC_STATE_RANGE_SIZE];
+    memset(dynamic_state_enables, 0, sizeof(dynamic_state_enables));
+    VkPipelineDynamicStateCreateInfo pdsci = {};
+    pdsci.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    pdsci.pDynamicStates = dynamic_state_enables;
+
+    VkPipelineVertexInputStateCreateInfo pvisci = {};
+    pvisci.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    pvisci.vertexBindingDescriptionCount = 1;
+    pvisci.pVertexBindingDescriptions = &vi_binding;
+    pvisci.vertexAttributeDescriptionCount = 2;
+    pvisci.pVertexAttributeDescriptions = vi_attribs;
+
+    VkPipelineInputAssemblyStateCreateInfo piasci = {};
+    piasci.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    piasci.primitiveRestartEnable = VK_FALSE;
+    piasci.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineRasterizationStateCreateInfo prsci = {};
+    prsci.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    prsci.polygonMode = VK_POLYGON_MODE_FILL;
+    prsci.cullMode = VK_CULL_MODE_BACK_BIT;
+    prsci.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    prsci.depthClampEnable = VK_FALSE;
+    prsci.rasterizerDiscardEnable = VK_FALSE;
+    prsci.depthBiasEnable = VK_FALSE;
+    prsci.depthBiasConstantFactor = 0;
+    prsci.depthBiasClamp = 0;
+    prsci.depthBiasSlopeFactor = 0;
+    prsci.lineWidth = 1.0f;
+
+    VkPipelineColorBlendStateCreateInfo pcbsci = {};
+    pcbsci.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    VkPipelineColorBlendAttachmentState cb_attachment_state[1];
+    memset(cb_attachment_state, 0, sizeof(cb_attachment_state));
+    cb_attachment_state[0].colorWriteMask = 0xf;
+    cb_attachment_state[0].blendEnable = VK_FALSE;
+    cb_attachment_state[0].alphaBlendOp = VK_BLEND_OP_ADD;
+    cb_attachment_state[0].colorBlendOp = VK_BLEND_OP_ADD;
+    cb_attachment_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    cb_attachment_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    cb_attachment_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    cb_attachment_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    pcbsci.attachmentCount = 1;
+    pcbsci.pAttachments = cb_attachment_state;
+    pcbsci.logicOpEnable = VK_FALSE;
+    pcbsci.logicOp = VK_LOGIC_OP_NO_OP;
+    pcbsci.blendConstants[0] = 1.0f;
+    pcbsci.blendConstants[1] = 1.0f;
+    pcbsci.blendConstants[2] = 1.0f;
+    pcbsci.blendConstants[3] = 1.0f;
+
+
+    #define NUM_VIEWPORTS 1
+    #define NUM_SCISSORS NUM_VIEWPORTS
+    VkPipelineViewportStateCreateInfo pvpsci = {};
+    pvpsci.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    pvpsci.viewportCount = NUM_VIEWPORTS;
+    dynamic_state_enables[pdsci.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
+    pvpsci.scissorCount = NUM_SCISSORS;
+    dynamic_state_enables[pdsci.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
+    pvpsci.pScissors = NULL;
+    pvpsci.pViewports = NULL;
+
+    VkPipelineDepthStencilStateCreateInfo pdssci = {};
+    pdssci.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    pdssci.depthTestEnable = VK_TRUE;
+    pdssci.depthWriteEnable = VK_TRUE;
+    pdssci.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    pdssci.depthBoundsTestEnable = VK_FALSE;
+    pdssci.minDepthBounds = 0;
+    pdssci.maxDepthBounds = 0;
+    pdssci.stencilTestEnable = VK_FALSE;
+    pdssci.back.failOp = VK_STENCIL_OP_KEEP;
+    pdssci.back.passOp = VK_STENCIL_OP_KEEP;
+    pdssci.back.compareOp = VK_COMPARE_OP_ALWAYS;
+    pdssci.back.compareMask = 0;
+    pdssci.back.reference = 0;
+    pdssci.back.depthFailOp = VK_STENCIL_OP_KEEP;
+    pdssci.back.writeMask = 0;
+    pdssci.front = pdssci.back;
     
+    VkPipelineMultisampleStateCreateInfo pmsci = {};
+    pmsci.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    pmsci.rasterizationSamples = NUM_SAMPLES;
+    pmsci.sampleShadingEnable = VK_FALSE;
+    pmsci.alphaToCoverageEnable = VK_FALSE;
+    pmsci.alphaToOneEnable = VK_FALSE;
+    pmsci.minSampleShading = 0.0;
+
+    VkGraphicsPipelineCreateInfo pci = {};
+    pci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pci.layout = pipeline_layout;
+    pci.pVertexInputState = &pvisci;
+    pci.pInputAssemblyState = &piasci;
+    pci.pRasterizationState = &prsci;
+    pci.pColorBlendState = &pcbsci;
+    pci.pTessellationState = NULL;
+    pci.pMultisampleState = &pmsci;
+    pci.pDynamicState = &pdsci;
+    pci.pViewportState = &pvpsci;
+    pci.pDepthStencilState = &pdssci;
+    pci.pStages = shader_stages;
+    pci.stageCount = 2;
+    pci.renderPass = render_pass;
+    pci.subpass = 0;
+
+    VkPipeline pipeline;
+    res = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pci, NULL, &pipeline);
+    assert(res == VK_SUCCESS);
+
+
     VkSemaphore image_acquired_semaphore;
     VkSemaphoreCreateInfo iasci = {};
     iasci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -933,8 +1141,32 @@ int main()
 
     vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, NUM_DESCRIPTOR_SETS,
+                            descriptor_sets, 0, NULL);
+
     const VkDeviceSize offsets[1] = {0};
     vkCmdBindVertexBuffers(cmd, 0, 1, &vertex_buffer, offsets);
+
+    VkViewport viewport = {};
+    viewport.height = swapchain_extent.height;
+    viewport.width = swapchain_extent.width;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    viewport.x = 0;
+    viewport.y = 0;
+    vkCmdSetViewport(cmd, 0, NUM_VIEWPORTS, &viewport);
+
+
+    VkRect2D scissor = {};
+    scissor.extent.width = swapchain_extent.width;
+    scissor.extent.height = swapchain_extent.height;
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    vkCmdSetScissor(cmd, 0, NUM_SCISSORS, &scissor);
+
+    vkCmdDraw(cmd, 12 * 3, 1, 0, 0);
 
     vkCmdEndRenderPass(cmd);
 
@@ -991,8 +1223,11 @@ int main()
         vkDestroyFramebuffer(device, framebuffers[i], NULL);
     }
     free(framebuffers);
-    vkDestroyShaderModule(device, fragment_sm, NULL);
-    vkDestroyShaderModule(device, vertex_sm, NULL);
+    vkDestroyPipeline(device, pipeline, NULL);
+    vkDestroyBuffer(device, vertex_buffer, NULL);
+    vkFreeMemory(device, vertex_buffer_memory, NULL);
+    vkDestroyShaderModule(device, shader_stages[0].module, NULL);
+    vkDestroyShaderModule(device, shader_stages[1].module, NULL);
     vkDestroyRenderPass(device, render_pass, NULL);
     vkDestroySemaphore(device, image_acquired_semaphore, NULL);
     vkDestroyDescriptorPool(device, descriptor_pool, NULL);
@@ -1013,6 +1248,7 @@ int main()
     vkDestroyDevice(device, NULL);
     free(gpus);
     free(queue_props);
+    vkDestroyDebugUtilsMessengerEXT(instance, debug_messenger, NULL);
     vkDestroyInstance(instance, NULL);
     xcb_disconnect(c);
 
