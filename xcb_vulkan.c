@@ -73,33 +73,28 @@ int memory_type_from_properties(const VkMemoryRequirements* memory_requirements,
     return -1;
 }
 
-
-typedef struct
-{
+typedef struct {
     float x, y, z, w;
 } quat_t;
 
-
-
-typedef struct 
-{
+typedef struct  {
     float x, y, z;
 } vec3_t;
 
-typedef struct{
-    float posX, posY, posZ, posW;  // Position data
-    float r, g, b, a;              // Color
-}  Vertex ;
+typedef struct {
+    float x, y, z, w;
+    float r, g, b, a;
+} vertex_t ;
 
 typedef struct {
-    float posX, posY, posZ, posW;  // Position data
-    float u, v;                    // texture u,v
-} VertexUV;
+    float x, y, z, w;
+    float u, v;
+} vertex_uv_t;
 
 #define XYZ1(_x_, _y_, _z_) (_x_), (_y_), (_z_), 1.f
 #define UV(_u_, _v_) (_u_), (_v_)
 
-static const Vertex g_vbData[] = {
+static const vertex_t g_vbData[] = {
     {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 0.f)}, {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},
     {XYZ1(-1, 1, -1), XYZ1(0.f, 1.f, 0.f)},  {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(1, 1, -1), XYZ1(1.f, 1.f, 0.f)},
 
@@ -119,7 +114,7 @@ static const Vertex g_vbData[] = {
     {XYZ1(-1, -1, 1), XYZ1(0.f, 0.f, 1.f)},  {XYZ1(1, -1, -1), XYZ1(1.f, 0.f, 0.f)}, {XYZ1(-1, -1, -1), XYZ1(0.f, 0.f, 0.f)},
 };
 
-static const Vertex g_vb_solid_face_colors_Data[] = {
+static const vertex_t g_vb_solid_face_colors_Data[] = {
     // red face
     {XYZ1(-1, -1, 1), XYZ1(1.f, 0.f, 0.f)},
     {XYZ1(-1, 1, 1), XYZ1(1.f, 0.f, 0.f)},
@@ -164,7 +159,7 @@ static const Vertex g_vb_solid_face_colors_Data[] = {
     {XYZ1(-1, -1, -1), XYZ1(0.f, 1.f, 1.f)},
 };
 
-static const VertexUV g_vb_texture_Data[] = {
+static const vertex_uv_t g_vb_texture_Data[] = {
     // left face
     {XYZ1(-1, -1, -1), UV(1.f, 0.f)},  // lft-top-front
     {XYZ1(-1, 1, 1), UV(0.f, 1.f)},    // lft-btm-back
